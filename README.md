@@ -8,7 +8,10 @@ The finished system accepts computational jobs over a REST API, runs them on ind
 
 - Builds a single C++20 executable with CMake (`backend/`), requiring only g++ 13+, CMake 3.16+ and make.
 - Bundles cpp-httplib (v0.57.1) as a vendored single-header dependency.
-- Runs a minimal HTTP server on `127.0.0.1:8080` that accepts incoming connections.
+- Runs an HTTP server on `127.0.0.1:8080`.
+- Serves `GET /` — a plain-text greeting.
+- Serves `GET /health` — a JSON `{"status":"ok"}` readiness probe.
+- Replies `404 Not Found` to unknown routes.
 
 ## Build and run
 
