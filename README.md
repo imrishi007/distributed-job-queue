@@ -12,6 +12,7 @@ The finished system accepts computational jobs over a REST API, runs them on ind
 - Serves `GET /` — a plain-text greeting.
 - Serves `GET /health` — a JSON `{"status":"ok"}` readiness probe.
 - Replies `404 Not Found` to unknown routes.
+- Accepts jobs via `POST /jobs` — validates the JSON body, assigns an id, pushes the job onto a Redis list, and returns `201` with the stored job. Request: `{"type":"...","payload":"..."}`.
 - Represents jobs as a typed C++ model (`Job` + status enum) and serializes them to/from JSON.
 - Includes a small self-check executable (`build/tests/djq-tests`) exercising the JSON round-trip.
 
@@ -28,7 +29,7 @@ cmake --build build
 | Layer | Technology |
 | --- | --- |
 | Backend / worker processes | C++20, CMake, cpp-httplib, nlohmann/json |
-| Queue | Redis |
+| Queue | Redis 7 (via hiredis) |
 | Persistence | PostgreSQL |
 | Dashboard | React + Vite |
 | Packaging | Docker |
