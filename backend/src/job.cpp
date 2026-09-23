@@ -6,16 +6,6 @@
 
 namespace {
 
-const char* status_name(JobStatus status) {
-    switch (status) {
-        case JobStatus::Queued: return "queued";
-        case JobStatus::Running: return "running";
-        case JobStatus::Succeeded: return "succeeded";
-        case JobStatus::Failed: return "failed";
-    }
-    return "unknown";
-}
-
 JobStatus status_from_name(const std::string& name) {
     if (name == "queued") return JobStatus::Queued;
     if (name == "running") return JobStatus::Running;
@@ -25,6 +15,16 @@ JobStatus status_from_name(const std::string& name) {
 }
 
 }  // namespace
+
+const char* job_status_name(JobStatus status) {
+    switch (status) {
+        case JobStatus::Queued: return "queued";
+        case JobStatus::Running: return "running";
+        case JobStatus::Succeeded: return "succeeded";
+        case JobStatus::Failed: return "failed";
+    }
+    return "unknown";
+}
 
 std::string generate_job_id() {
     // ponytail: 64 random bits; fine for dev scale, upgrade to a UUID when
@@ -45,7 +45,8 @@ void to_json(nlohmann::json& j, const Job& job) {
     j = nlohmann::json{{"id", job.id},
                        {"type", job.type},
                        {"payload", job.payload},
-                       {"status", status_name(job.status)}};
+                       {"status", job_status_name(job.status)},
+                       {"output", job.output}};
 }
 
 void from_json(const nlohmann::json& j, Job& job) {
@@ -53,4 +54,5 @@ void from_json(const nlohmann::json& j, Job& job) {
     job.type = j.at("type").get<std::string>();
     job.payload = j.at("payload").get<std::string>();
     job.status = status_from_name(j.at("status").get<std::string>());
+    job.output = j.at("output").get<std::string>();
 }
