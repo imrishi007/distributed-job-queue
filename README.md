@@ -13,7 +13,7 @@ The finished system accepts computational jobs over a REST API, runs them on ind
 - Serves `GET /health` — a JSON `{"status":"ok"}` readiness probe.
 - Replies `404 Not Found` to unknown routes.
 - Accepts jobs via `POST /jobs` — validates the JSON body, assigns an id, pushes the job onto a Redis list, and returns `201` with the stored job. Request: `{"type":"...","payload":"..."}`.
-- Runs a `djq-worker` process that consumes jobs off the queue, executes them (built-in types: `sleep`, `echo`), and stores each result under `job:<id>` with a `succeeded`/`failed` status and an output string.
+- Runs `djq-worker` processes that consume jobs off the queue, execute them (built-in types: `sleep`, `echo`), and store each result under `job:<id>` with a `succeeded`/`failed` status and an output string. Run as many as you like — Redis hands each queued job to exactly one consumer, so workers scale horizontally with no coordination (pass a name argument, e.g. `djq-worker A`, to tell them apart in logs).
 - Represents jobs as a typed C++ model (`Job` + status enum) and serializes them to/from JSON.
 - Includes a small self-check executable (`build/tests/djq-tests`) exercising the JSON round-trip.
 

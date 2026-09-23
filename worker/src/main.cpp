@@ -4,6 +4,7 @@
 #include <exception>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <thread>
 
 #include "job.h"
@@ -25,9 +26,11 @@ std::string execute(const Job& job) {
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    const std::string name = argc > 1 ? argv[1] : "worker";
+
     Redis redis("127.0.0.1", 6379);
-    std::cout << "worker started, waiting for jobs" << std::endl;
+    std::cout << "[" << name << "] started, waiting for jobs" << std::endl;
 
     for (;;) {
         const auto raw = redis.pop("jobs", 0 /* block forever */);
@@ -39,6 +42,7 @@ int main() {
         std::string output;
         try {
             job = nlohmann::json::parse(*raw).get<Job>();
+            std::cout << "[" << name << "] job " << job.id << " started" << std::endl;
             job.status = JobStatus::Running;
             output = execute(job);
             job.status = JobStatus::Succeeded;
@@ -50,7 +54,7 @@ int main() {
         job.output = output;
         redis.set("job:" + job.id, nlohmann::json(job).dump());
 
-        std::cout << "job " << job.id << ' ' << job_status_name(job.status) << " — " << output
-                  << std::endl;
+        std::cout << "[" << name << "] job " << job.id << ' ' << job_status_name(job.status)
+                  << " — " << output << std::endl;
     }
 }
