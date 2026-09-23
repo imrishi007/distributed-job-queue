@@ -1,6 +1,6 @@
-#include <iostream>
+#include <httplib.h>
 
 int main() {
-    std::cout << "g++ " << __GNUC__ << "." << __GNUC_MINOR__
-              << " C++ " << __cplusplus << '\n';
+    httplib::Server svr;
+    return svr.listen("127.0.0.1", 8080);
 }
