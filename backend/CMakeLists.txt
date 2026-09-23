@@ -1,0 +1,1 @@
+add_executable(djq-backend src/main.cpp)
