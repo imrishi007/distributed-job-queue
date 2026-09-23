@@ -1,7 +1,9 @@
+add_library(djq-core src/job.cpp)
+target_include_directories(djq-core PUBLIC src third_party)
+target_compile_options(djq-core PRIVATE -Wall -Wextra)
+
 add_executable(djq-backend src/main.cpp)
-
-target_include_directories(djq-backend PRIVATE third_party)
-
+target_link_libraries(djq-backend PRIVATE djq-core)
 target_compile_options(djq-backend PRIVATE -Wall -Wextra)
 
 find_package(Threads REQUIRED)
