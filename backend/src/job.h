@@ -13,5 +13,7 @@ struct Job {
     JobStatus status = JobStatus::Queued;
 };
 
+std::string generate_job_id();
+
 void to_json(nlohmann::json& j, const Job& job);
 void from_json(const nlohmann::json& j, Job& job);

@@ -1,5 +1,6 @@
 #include "job.h"
 
+#include <random>
 #include <stdexcept>
 #include <string>
 
@@ -24,6 +25,21 @@ JobStatus status_from_name(const std::string& name) {
 }
 
 }  // namespace
+
+std::string generate_job_id() {
+    // ponytail: 64 random bits; fine for dev scale, upgrade to a UUID when
+    // the queue outgrows ~thousands of concurrent jobs.
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> hex(0, 15);
+    static constexpr char digits[] = "0123456789abcdef";
+
+    std::string id(16, '\0');
+    for (char& c : id) {
+        c = digits[hex(gen)];
+    }
+    return id;
+}
 
 void to_json(nlohmann::json& j, const Job& job) {
     j = nlohmann::json{{"id", job.id},
