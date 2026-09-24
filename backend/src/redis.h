@@ -19,6 +19,8 @@ public:
     // returns std::nullopt on timeout.
     std::optional<std::string> pop(const std::string& key, double timeout_seconds);
     void set(const std::string& key, const std::string& value);
+    // Number of elements in key (LLEN); -1 on error. Used for queue depth.
+    long long llen(const std::string& key);
 
 private:
     redisContext* ctx_;

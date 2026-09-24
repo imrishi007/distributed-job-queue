@@ -294,3 +294,23 @@ std::vector<Job> Pq::list_jobs(int limit) {
     PQclear(res);
     return jobs;
 }
+
+std::map<std::string, long> Pq::status_counts() {
+    std::lock_guard lock(mutex_);
+    constexpr const char* sql = "SELECT status, count(*) FROM jobs GROUP BY status";
+    PGresult* res = PQexec(conn_, sql);
+    if (res == nullptr || PQresultStatus(res) != PGRES_TUPLES_OK) {
+        const std::string detail = res != nullptr ? PQerrorMessage(conn_) : "PQexec returned null";
+        if (res != nullptr) {
+            PQclear(res);
+        }
+        throw std::runtime_error("postgres: status_counts failed: " + detail);
+    }
+
+    std::map<std::string, long> counts;
+    for (int i = 0; i < PQntuples(res); ++i) {
+        counts[PQgetvalue(res, i, 0)] = std::stol(PQgetvalue(res, i, 1));
+    }
+    PQclear(res);
+    return counts;
+}

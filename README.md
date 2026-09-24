@@ -11,6 +11,7 @@ The finished system accepts computational jobs over a REST API, runs them on ind
 - Runs an HTTP server on `127.0.0.1:8080`.
 - Serves `GET /` — a plain-text greeting.
 - Serves `GET /health` — a JSON `{"status":"ok"}` readiness probe.
+- Serves `GET /metrics` — live queue depth (Redis `LLEN jobs`) plus jobs-per-status counts from PostgreSQL, for a dashboard status strip.
 - Replies `404 Not Found` to unknown routes.
 - Accepts jobs via `POST /jobs` — validates the JSON body, assigns an id, persists the job to PostgreSQL, pushes it onto a Redis list, and returns `201` with the stored job. Request: `{"type":"...","payload":"..."}`.
 - Serves `GET /jobs/<id>` — looks up a job by its 16-hex-char id in PostgreSQL and returns it (`404` if unknown).
@@ -21,7 +22,7 @@ The finished system accepts computational jobs over a REST API, runs them on ind
 - Persists every job and result in a `jobs` table (id, type, payload, status, output, created_at). PostgreSQL is the durable system of record; Redis carries the live queue. Data survives restarts and `flushdb`.
 - Represents jobs as a typed C++ model (`Job` + status enum) and serializes them to/from JSON.
 - Includes a small self-check executable (`build/tests/djq-tests`) exercising the JSON round-trip.
-- Includes a live React dashboard (`dashboard/`) — worker fleet with online/offline liveness, recent jobs, and a job-submission form. It is a Vite dev server that proxies `/api` to the backend on `127.0.0.1:8080`.
+- Includes a live React dashboard (`dashboard/`) — worker fleet with online/offline liveness, queue depth and jobs-per-status strip, recent jobs, and a job-submission form. It is a Vite dev server that proxies `/api` to the backend on `127.0.0.1:8080`.
 
 ## Build and run
 

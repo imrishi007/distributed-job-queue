@@ -5,6 +5,7 @@
 
 #include <libpq-fe.h>
 
+#include <map>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -25,6 +26,8 @@ public:
     bool reclaim_job(const std::string& id, int older_than_seconds);
     std::optional<Job> fetch_job(const std::string& id);
     std::vector<Job> list_jobs(int limit);
+    // Count of jobs per status, e.g. {{"queued",4},{"running",1},{"succeeded",9}}.
+    std::map<std::string, long> status_counts();
 
     void register_worker(const std::string& id, const std::string& name);
     void heartbeat(const std::string& id, WorkerStatus status);

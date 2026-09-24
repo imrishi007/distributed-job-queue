@@ -18,6 +18,20 @@ int main() {
     svr.Get("/health", [](const httplib::Request&, httplib::Response& res) {
         res.set_content(R"({"status":"ok"})", "application/json");
     });
+    svr.Get("/metrics", [&redis, &pq](const httplib::Request&, httplib::Response& res) {
+        try {
+            const long long depth = redis.llen("jobs");
+            const auto counts = pq.status_counts();
+            nlohmann::json j = {{"queue_depth", depth}, {"jobs_by_status", nlohmann::json::object()}};
+            for (const auto& [status, count] : counts) {
+                j["jobs_by_status"][status] = count;
+            }
+            res.set_content(j.dump(), "application/json");
+        } catch (const std::exception&) {
+            res.status = 500;
+            res.set_content(R"({"error":"metrics unavailable"})", "application/json");
+        }
+    });
     svr.Post("/jobs", [&redis, &pq](const httplib::Request& req, httplib::Response& res) {
         try {
             const auto body = nlohmann::json::parse(req.body);

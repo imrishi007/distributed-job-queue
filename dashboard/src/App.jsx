@@ -19,19 +19,22 @@ export default function App() {
   const [health, setHealth] = useState({ ok: true, data: null });
   const [workers, setWorkers] = useState([]);
   const [jobs, setJobs] = useState([]);
+  const [metrics, setMetrics] = useState({ queue_depth: 0, jobs_by_status: {} });
   const [form, setForm] = useState({ type: 'echo', payload: 'hello from the dashboard' });
   const [flash, setFlash] = useState('');
 
   const refresh = useCallback(async () => {
     try {
-      const [h, w, j] = await Promise.all([
+      const [h, w, j, m] = await Promise.all([
         getJson('/api/health'),
         getJson('/api/workers'),
         getJson('/api/jobs'),
+        getJson('/api/metrics'),
       ]);
       setHealth({ ok: true, data: h });
       setWorkers(w);
       setJobs(j);
+      setMetrics(m);
     } catch {
       setHealth({ ok: false, data: null });
     }
@@ -73,6 +76,14 @@ export default function App() {
       <h1>Distributed Job Queue</h1>
       <p style={{ color: health.ok ? '#1e8449' : '#c0392b', fontWeight: 600 }}>
         API: {health.ok ? 'online' : 'unreachable'}
+      </p>
+      <p>
+        queue depth: <strong style={{ color: metrics.queue_depth ? '#b7950b' : '#1e8449' }}>{metrics.queue_depth}</strong>
+        {' | '}
+        {['queued', 'running', 'succeeded', 'failed']
+          .filter((s) => metrics.jobs_by_status[s] !== undefined)
+          .map((s) => `${s}: ${metrics.jobs_by_status[s]}`)
+          .join(' | ')}
       </p>
       <hr />
 

@@ -69,3 +69,18 @@ void Redis::set(const std::string& key, const std::string& value) {
     }
     freeReplyObject(reply);
 }
+
+long long Redis::llen(const std::string& key) {
+    std::lock_guard lock(mutex_);
+    redisReply* reply =
+        static_cast<redisReply*>(redisCommand(ctx_, "LLEN %s", key.c_str()));
+    if (reply == nullptr || reply->type != REDIS_REPLY_INTEGER) {
+        if (reply != nullptr) {
+            freeReplyObject(reply);
+        }
+        throw std::runtime_error("redis: LLEN failed");
+    }
+    const long long len = reply->integer;
+    freeReplyObject(reply);
+    return len;
+}
