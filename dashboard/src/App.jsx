@@ -15,6 +15,31 @@ const ago = (ts) => {
   return `${s}s ago`;
 };
 
+const PAYLOAD_DEFAULTS = {
+  echo: 'hello from the dashboard',
+  sleep: '{"seconds":2}',
+};
+
+const PAYLOAD_HINTS = {
+  echo: 'any text',
+  sleep: 'JSON, e.g. {"seconds":2}',
+};
+
+function validatePayload(type, payload) {
+  if (!payload.trim()) return 'payload is empty';
+  if (type !== 'sleep') return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(payload);
+  } catch {
+    return `sleep needs ${PAYLOAD_HINTS.sleep}`;
+  }
+  if (typeof parsed.seconds !== 'number' || !Number.isFinite(parsed.seconds) || parsed.seconds <= 0) {
+    return 'sleep needs a positive number of seconds';
+  }
+  return null;
+}
+
 export default function App() {
   const [health, setHealth] = useState({ ok: true, data: null });
   const [workers, setWorkers] = useState([]);
@@ -48,6 +73,12 @@ export default function App() {
 
   async function submit(e) {
     e.preventDefault();
+    const problem = validatePayload(form.type, form.payload);
+    if (problem) {
+      setFlash(problem);
+      setTimeout(() => setFlash(''), 5000);
+      return;
+    }
     try {
       const res = await fetch('/api/jobs', {
         method: 'POST',
@@ -91,7 +122,17 @@ export default function App() {
       <form onSubmit={submit} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
         <select
           value={form.type}
-          onChange={(e) => setForm({ ...form, type: e.target.value })}
+          onChange={(e) => {
+            const prev = form.type;
+            const next = e.target.value;
+            setForm((f) => ({
+              ...f,
+              type: next,
+              // Swap in the new type's default only if the user never
+              // personalised the current payload.
+              payload: f.payload === PAYLOAD_DEFAULTS[prev] ? PAYLOAD_DEFAULTS[next] : f.payload,
+            }));
+          }}
         >
           <option value="echo">echo</option>
           <option value="sleep">sleep</option>
@@ -100,10 +141,12 @@ export default function App() {
           style={{ flex: 1, minWidth: 260, padding: 4 }}
           value={form.payload}
           onChange={(e) => setForm({ ...form, payload: e.target.value })}
-          placeholder='payload, e.g. {"seconds":2}'
         />
         <button type="submit">Submit</button>
       </form>
+      <p style={{ color: '#888', fontSize: 13, marginTop: 0 }}>
+        payload ({PAYLOAD_HINTS[form.type]})
+      </p>
       {flash && <p style={{ fontWeight: 600 }}>{flash}</p>}
       <hr />
 
