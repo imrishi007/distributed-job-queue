@@ -1,10 +1,21 @@
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 
+#include <cstdio>
+#include <thread>
+
 #include "job.h"
 #include "pq.h"
 #include "redis.h"
 #include "worker.h"
+
+// How long a worker may be silent before the registry reaps it. Must exceed
+// the voluntary heartbeat gap (5s) plus the longest plausible job run; busy
+// long-running jobs are NOT reaped while inside this window (ponytail: true
+// production needs in-band liveness, i.e. a worker that keeps heartbeating
+// while busy; here jobs are sub-minute so a coarse TTL is safe).
+constexpr int kWorkerTtlSeconds = 120;
+constexpr int kHousekeepingIntervalSeconds = 5;
 
 int main() {
     Pq pq("host=/var/run/postgresql dbname=jobqueue");
@@ -94,5 +105,19 @@ int main() {
             res.set_content(R"({"error":"store unavailable"})", "application/json");
         }
     });
+    // Housekeeping: periodically reap workers whose heartbeats went silent.
+    // A detached thread so the HTTP server stays responsive; a PG hiccup is
+    // logged to stderr and retried next cycle.
+    std::thread([&pq] {
+        for (;;) {
+            std::this_thread::sleep_for(std::chrono::seconds(kHousekeepingIntervalSeconds));
+            try {
+                pq.prune_stale_workers(kWorkerTtlSeconds);
+            } catch (const std::exception& e) {
+                std::fprintf(stderr, "housekeeping: %s\n", e.what());
+            }
+        }
+    }).detach();
+
     return svr.listen("127.0.0.1", 8080);
 }

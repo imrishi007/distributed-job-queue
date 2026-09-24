@@ -32,6 +32,9 @@ public:
     void register_worker(const std::string& id, const std::string& name);
     void heartbeat(const std::string& id, WorkerStatus status);
     std::vector<Worker> list_workers();
+    // Deletes registrations whose heartbeat has been silent for
+    // older_than_seconds — a dead (or vanished) worker, not a busy one.
+    void prune_stale_workers(int older_than_seconds);
 
 private:
     PGconn* conn_;

@@ -235,6 +235,24 @@ std::vector<Worker> Pq::list_workers() {
     return workers;
 }
 
+void Pq::prune_stale_workers(int older_than_seconds) {
+    std::lock_guard lock(mutex_);
+    const std::string secs = std::to_string(older_than_seconds);
+    const char* param = secs.c_str();
+    constexpr const char* sql =
+        "DELETE FROM workers WHERE last_seen < now() - make_interval(secs => $1::int)";
+    PGresult* res = PQexecParams(conn_, sql, 1, nullptr, &param, nullptr, nullptr, 0);
+    if (res == nullptr || PQresultStatus(res) != PGRES_COMMAND_OK) {
+        const std::string detail =
+            res != nullptr ? PQerrorMessage(conn_) : "PQexecParams returned null";
+        if (res != nullptr) {
+            PQclear(res);
+        }
+        throw std::runtime_error("postgres: prune_stale_workers failed: " + detail);
+    }
+    PQclear(res);
+}
+
 std::optional<Job> Pq::fetch_job(const std::string& id) {
     std::lock_guard lock(mutex_);
     constexpr const char* sql =
