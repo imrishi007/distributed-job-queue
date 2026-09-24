@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <thread>
 
+#include "env.h"
 #include "job.h"
 #include "pq.h"
 #include "redis.h"
@@ -18,9 +19,22 @@ constexpr int kWorkerTtlSeconds = 120;
 constexpr int kHousekeepingIntervalSeconds = 5;
 
 int main() {
-    Pq pq("host=/var/run/postgresql dbname=jobqueue");
+    const std::string pg_dsn = env_or("DJQ_PG_DSN", "host=/var/run/postgresql dbname=jobqueue");
+    const std::string redis_host = env_or("DJQ_REDIS_HOST", "127.0.0.1");
+    const int redis_port = std::stoi(env_or("DJQ_REDIS_PORT", "6379"));
+    // "host:port" only, e.g. 0.0.0.0:8080 for containers.
+    const std::string bind = env_or("DJQ_BIND", "127.0.0.1:8080");
+    const size_t colon = bind.rfind(':');
+    if (colon == std::string::npos || colon == 0) {
+        std::fprintf(stderr, "bad DJQ_BIND %s (expected host:port)\n", bind.c_str());
+        return 2;
+    }
+    const std::string bind_host = bind.substr(0, colon);
+    const int bind_port = std::stoi(bind.substr(colon + 1));
+
+    Pq pq(pg_dsn);
     pq.ensure_schema();
-    Redis redis("127.0.0.1", 6379);
+    Redis redis(redis_host, redis_port);
 
     httplib::Server svr;
     svr.Get("/", [](const httplib::Request&, httplib::Response& res) {
@@ -119,5 +133,5 @@ int main() {
         }
     }).detach();
 
-    return svr.listen("127.0.0.1", 8080);
+    return svr.listen(bind_host, bind_port);
 }

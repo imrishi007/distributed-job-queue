@@ -7,6 +7,7 @@
 #include <string>
 #include <thread>
 
+#include "env.h"
 #include "job.h"
 #include "pq.h"
 #include "redis.h"
@@ -54,9 +55,12 @@ void sweep(Redis& redis, Pq& pq, const std::string& name) {
 
 int main(int argc, char** argv) {
     const std::string name = argc > 1 ? argv[1] : "worker";
+    const std::string pg_dsn = env_or("DJQ_PG_DSN", "host=/var/run/postgresql dbname=jobqueue");
+    const std::string redis_host = env_or("DJQ_REDIS_HOST", "127.0.0.1");
+    const int redis_port = std::stoi(env_or("DJQ_REDIS_PORT", "6379"));
 
-    Redis redis("127.0.0.1", 6379);
-    Pq pq("host=/var/run/postgresql dbname=jobqueue");
+    Redis redis(redis_host, redis_port);
+    Pq pq(pg_dsn);
     pq.ensure_schema();
     const std::string worker_id = generate_job_id();
     pq.register_worker(worker_id, name);

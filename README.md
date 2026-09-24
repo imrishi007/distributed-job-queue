@@ -22,7 +22,9 @@ The finished system accepts computational jobs over a REST API, runs them on ind
 - Persists every job and result in a `jobs` table (id, type, payload, status, output, created_at). PostgreSQL is the durable system of record; Redis carries the live queue. Data survives restarts and `flushdb`.
 - Represents jobs as a typed C++ model (`Job` + status enum) and serializes them to/from JSON.
 - Includes a small self-check executable (`build/tests/djq-tests`) exercising the JSON round-trip.
-- Includes a live React dashboard (`dashboard/`) — worker fleet with online/offline liveness, queue depth and jobs-per-status strip, recent jobs, and a job-submission form with per-type payload defaults and client-side validation. It is a Vite dev server that proxies `/api` to the backend on `127.0.0.1:8080`.
+- Reads connection settings from the environment (`DJQ_PG_DSN`, `DJQ_REDIS_HOST`/`DJQ_REDIS_PORT`, `DJQ_BIND`) with bare-metal defaults, so the very same binaries run on a host or inside a container.
+- Is fully containerised: `docker compose up --build` brings up redis, PostgreSQL (with a data volume), the backend, two workers, and the dashboard built to static files and served by nginx (which also reverse-proxies `/api` to the backend). The dashboard lands on `http://localhost:8081`; the backend API is on `http://localhost:8082`.
+- Includes a live React dashboard (`dashboard/`) — worker fleet with online/offline liveness, queue depth and jobs-per-status strip, recent jobs, and a job-submission form with per-type payload defaults and client-side validation. In dev it runs as a Vite server that proxies `/api` to the backend on `127.0.0.1:8080`.
 
 ## Build and run
 
@@ -41,6 +43,14 @@ npm run dev
 ```
 
 Then open `http://localhost:5173`.
+
+Run everything in containers instead:
+
+```bash
+docker compose up -d --build
+```
+
+Open `http://localhost:8081` for the dashboard; submit works straight from there. `docker compose ps` shows the six services; `docker compose logs -f worker` tails the fleet.
 
 ## Tech stack
 
