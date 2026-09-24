@@ -12,8 +12,10 @@ The finished system accepts computational jobs over a REST API, runs them on ind
 - Serves `GET /` — a plain-text greeting.
 - Serves `GET /health` — a JSON `{"status":"ok"}` readiness probe.
 - Replies `404 Not Found` to unknown routes.
-- Accepts jobs via `POST /jobs` — validates the JSON body, assigns an id, pushes the job onto a Redis list, and returns `201` with the stored job. Request: `{"type":"...","payload":"..."}`.
-- Runs `djq-worker` processes that consume jobs off the queue, execute them (built-in types: `sleep`, `echo`), and store each result under `job:<id>` with a `succeeded`/`failed` status and an output string. Run as many as you like — Redis hands each queued job to exactly one consumer, so workers scale horizontally with no coordination (pass a name argument, e.g. `djq-worker A`, to tell them apart in logs).
+- Accepts jobs via `POST /jobs` — validates the JSON body, assigns an id, persists the job to PostgreSQL, pushes it onto a Redis list, and returns `201` with the stored job. Request: `{"type":"...","payload":"..."}`.
+- Serves `GET /jobs/<id>` — looks up a job by its 16-hex-char id in PostgreSQL and returns it (`404` if unknown).
+- Runs `djq-worker` processes that consume jobs off the queue, execute them (built-in types: `sleep`, `echo`), and record each result in PostgreSQL and Redis (`job:<id>`) with a `succeeded`/`failed` status and an output string. Run as many as you like — Redis hands each queued job to exactly one consumer, so workers scale horizontally with no coordination (pass a name argument, e.g. `djq-worker A`, to tell them apart in logs).
+- Persists every job and result in a `jobs` table (id, type, payload, status, output, created_at). PostgreSQL is the durable system of record; Redis carries the live queue. Data survives restarts and `flushdb`.
 - Represents jobs as a typed C++ model (`Job` + status enum) and serializes them to/from JSON.
 - Includes a small self-check executable (`build/tests/djq-tests`) exercising the JSON round-trip.
 
@@ -31,6 +33,6 @@ cmake --build build
 | --- | --- |
 | Backend / worker processes | C++20, CMake, cpp-httplib, nlohmann/json |
 | Queue | Redis 7 (via hiredis) |
-| Persistence | PostgreSQL |
+| Persistence | PostgreSQL 16 (via libpq) |
 | Dashboard | React + Vite |
 | Packaging | Docker |

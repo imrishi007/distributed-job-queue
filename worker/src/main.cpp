@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "job.h"
+#include "pq.h"
 #include "redis.h"
 
 namespace {
@@ -30,6 +31,8 @@ int main(int argc, char** argv) {
     const std::string name = argc > 1 ? argv[1] : "worker";
 
     Redis redis("127.0.0.1", 6379);
+    Pq pq("host=/var/run/postgresql dbname=jobqueue");
+    pq.ensure_schema();
     std::cout << "[" << name << "] started, waiting for jobs" << std::endl;
 
     for (;;) {
@@ -53,6 +56,14 @@ int main(int argc, char** argv) {
 
         job.output = output;
         redis.set("job:" + job.id, nlohmann::json(job).dump());
+        // ponytail: log-and-continue on Postgres hiccups so a worker crash
+        // doesn't stall the whole queue; durable reconciliation comes later.
+        try {
+            pq.upsert_job(job);
+        } catch (const std::exception& e) {
+            std::cout << "[" << name << "] warning: postgres write failed: " << e.what()
+                      << std::endl;
+        }
 
         std::cout << "[" << name << "] job " << job.id << ' ' << job_status_name(job.status)
                   << " — " << output << std::endl;
