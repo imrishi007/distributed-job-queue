@@ -235,7 +235,7 @@ std::vector<Worker> Pq::list_workers() {
     return workers;
 }
 
-void Pq::prune_stale_workers(int older_than_seconds) {
+int Pq::prune_stale_workers(int older_than_seconds) {
     std::lock_guard lock(mutex_);
     const std::string secs = std::to_string(older_than_seconds);
     const char* param = secs.c_str();
@@ -250,7 +250,9 @@ void Pq::prune_stale_workers(int older_than_seconds) {
         }
         throw std::runtime_error("postgres: prune_stale_workers failed: " + detail);
     }
+    const int deleted = std::stoi(PQcmdTuples(res));
     PQclear(res);
+    return deleted;
 }
 
 std::optional<Job> Pq::fetch_job(const std::string& id) {

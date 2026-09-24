@@ -34,7 +34,8 @@ public:
     std::vector<Worker> list_workers();
     // Deletes registrations whose heartbeat has been silent for
     // older_than_seconds — a dead (or vanished) worker, not a busy one.
-    void prune_stale_workers(int older_than_seconds);
+    // Returns how many rows were removed (0 when nothing was stale).
+    int prune_stale_workers(int older_than_seconds);
 
 private:
     PGconn* conn_;

@@ -10,15 +10,16 @@
 #include "redis.h"
 #include "worker.h"
 
-// How long a worker may be silent before the registry reaps it. Must exceed
-// the voluntary heartbeat gap (5s) plus the longest plausible job run; busy
-// long-running jobs are NOT reaped while inside this window (ponytail: true
-// production needs in-band liveness, i.e. a worker that keeps heartbeating
-// while busy; here jobs are sub-minute so a coarse TTL is safe).
-constexpr int kWorkerTtlSeconds = 120;
+// How long a worker may be silent before the registry reaps it (tunable via
+// DJQ_WORKER_TTL_SECONDS). Must exceed the voluntary heartbeat gap (5s) plus
+// the longest plausible job run; busy long-running jobs are NOT reaped while
+// inside this window (ponytail: true production needs in-band liveness, i.e. a
+// worker that keeps heartbeating while busy; here jobs are sub-minute so a
+// coarse TTL is safe).
 constexpr int kHousekeepingIntervalSeconds = 5;
 
 int main() {
+    const int worker_ttl_seconds = std::stoi(env_or("DJQ_WORKER_TTL_SECONDS", "120"));
     const std::string pg_dsn = env_or("DJQ_PG_DSN", "host=/var/run/postgresql dbname=jobqueue");
     const std::string redis_host = env_or("DJQ_REDIS_HOST", "127.0.0.1");
     const int redis_port = std::stoi(env_or("DJQ_REDIS_PORT", "6379"));
@@ -122,11 +123,15 @@ int main() {
     // Housekeeping: periodically reap workers whose heartbeats went silent.
     // A detached thread so the HTTP server stays responsive; a PG hiccup is
     // logged to stderr and retried next cycle.
-    std::thread([&pq] {
+    std::thread([&pq, worker_ttl_seconds] {
         for (;;) {
             std::this_thread::sleep_for(std::chrono::seconds(kHousekeepingIntervalSeconds));
             try {
-                pq.prune_stale_workers(kWorkerTtlSeconds);
+                const int pruned = pq.prune_stale_workers(worker_ttl_seconds);
+                if (pruned > 0) {
+                    std::fprintf(stdout, "housekeeping: pruned %d stale worker(s)\n", pruned);
+                    std::fflush(stdout);
+                }
             } catch (const std::exception& e) {
                 std::fprintf(stderr, "housekeeping: %s\n", e.what());
             }
