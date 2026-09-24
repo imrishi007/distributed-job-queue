@@ -10,6 +10,7 @@
 #include "job.h"
 #include "pq.h"
 #include "redis.h"
+#include "worker.h"
 
 namespace {
 
@@ -57,13 +58,13 @@ int main(int argc, char** argv) {
     Redis redis("127.0.0.1", 6379);
     Pq pq("host=/var/run/postgresql dbname=jobqueue");
     pq.ensure_schema();
+    const std::string worker_id = generate_job_id();
+    pq.register_worker(worker_id, name);
     std::cout << "[" << name << "] started, waiting for jobs" << std::endl;
 
     // Self-heal on startup: a previous crash may have left orphans behind.
     sweep(redis, pq, name);
 
-    // Self-healer: rescues work orphaned by crashed peers. The main loop keeps
-    // its zero-CPU blocking BLPOP; this thread owns the recovery pacing.
     for (;;) {
         // Bounded block (5s) instead of "0 = forever": the wakeup doubles as a
         // heartbeat so the single worker thread can rescue orphans too.
@@ -71,6 +72,9 @@ int main(int argc, char** argv) {
         // any concurrent sweeper trying to re-push to the same mutex.)
         const auto raw = redis.pop("jobs", 5 /* seconds */);
         if (!raw) {
+            // ponytail: heartbeats only land between jobs, so a long-running
+            // job can age last_seen and briefly look "down" until it finishes.
+            pq.heartbeat(worker_id, WorkerStatus::Voluntary);
             sweep(redis, pq, name);
             continue;
         }
@@ -81,6 +85,7 @@ int main(int argc, char** argv) {
             job = nlohmann::json::parse(*raw).get<Job>();
             std::cout << "[" << name << "] job " << job.id << " started" << std::endl;
             job.status = JobStatus::Running;
+            pq.heartbeat(worker_id, WorkerStatus::Busy);
             // ponytail: a worker dying between pop and this lease leaves a job
             // neither in Redis nor marked running — a residual at-most-once
             // gap that needs transactioning across the two stores to close.

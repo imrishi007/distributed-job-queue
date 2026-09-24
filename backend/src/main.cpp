@@ -4,6 +4,7 @@
 #include "job.h"
 #include "pq.h"
 #include "redis.h"
+#include "worker.h"
 
 int main() {
     Pq pq("host=/var/run/postgresql dbname=jobqueue");
@@ -48,6 +49,19 @@ int main() {
                 return;
             }
             res.set_content(nlohmann::json(*job).dump(), "application/json");
+        } catch (const std::exception&) {
+            res.status = 500;
+            res.set_content(R"({"error":"store unavailable"})", "application/json");
+        }
+    });
+    svr.Get("/workers", [&pq](const httplib::Request&, httplib::Response& res) {
+        try {
+            const auto workers = pq.list_workers();
+            nlohmann::json arr = nlohmann::json::array();
+            for (const Worker& w : workers) {
+                arr.push_back(w);
+            }
+            res.set_content(arr.dump(), "application/json");
         } catch (const std::exception&) {
             res.status = 500;
             res.set_content(R"({"error":"store unavailable"})", "application/json");

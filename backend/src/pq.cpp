@@ -21,6 +21,14 @@ constexpr const char* kSchemaSql =
 constexpr const char* kMigrateSql =
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS leased_at TIMESTAMPTZ";
 
+constexpr const char* kWorkersSql =
+    "CREATE TABLE IF NOT EXISTS workers ("
+    "id TEXT PRIMARY KEY, "
+    "name TEXT NOT NULL, "
+    "status TEXT NOT NULL, "
+    "last_seen TIMESTAMPTZ NOT NULL DEFAULT now() "
+    ")";
+
 }  // namespace
 
 Pq::Pq(const std::string& conninfo) : conn_(PQconnectdb(conninfo.c_str())) {
@@ -46,7 +54,7 @@ Pq::~Pq() {
 
 void Pq::ensure_schema() {
     std::lock_guard lock(mutex_);
-    for (const char* sql : {kSchemaSql, kMigrateSql}) {
+    for (const char* sql : {kSchemaSql, kMigrateSql, kWorkersSql}) {
         PGresult* res = PQexec(conn_, sql);
         if (res == nullptr || PQresultStatus(res) != PGRES_COMMAND_OK) {
             const std::string detail =
@@ -162,6 +170,69 @@ bool Pq::reclaim_job(const std::string& id, int older_than_seconds) {
     const bool won = std::string(PQcmdTuples(res)) == "1";
     PQclear(res);
     return won;
+}
+
+void Pq::register_worker(const std::string& id, const std::string& name) {
+    std::lock_guard lock(mutex_);
+    const char* params[] = {id.c_str(), name.c_str()};
+    constexpr const char* sql =
+        "INSERT INTO workers (id, name, status, last_seen) "
+        "VALUES ($1, $2, 'voluntary', now()) "
+        "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = 'voluntary', "
+        "last_seen = now()";
+    PGresult* res = PQexecParams(conn_, sql, 2, nullptr, params, nullptr, nullptr, 0);
+    if (res == nullptr || PQresultStatus(res) != PGRES_COMMAND_OK) {
+        const std::string detail =
+            res != nullptr ? PQerrorMessage(conn_) : "PQexecParams returned null";
+        if (res != nullptr) {
+            PQclear(res);
+        }
+        throw std::runtime_error("postgres: register_worker failed: " + detail);
+    }
+    PQclear(res);
+}
+
+void Pq::heartbeat(const std::string& id, WorkerStatus status) {
+    std::lock_guard lock(mutex_);
+    const char* params[] = {id.c_str(), worker_status_name(status)};
+    constexpr const char* sql = "UPDATE workers SET status = $2, last_seen = now() WHERE id = $1";
+    PGresult* res = PQexecParams(conn_, sql, 2, nullptr, params, nullptr, nullptr, 0);
+    if (res == nullptr || PQresultStatus(res) != PGRES_COMMAND_OK) {
+        const std::string detail =
+            res != nullptr ? PQerrorMessage(conn_) : "PQexecParams returned null";
+        if (res != nullptr) {
+            PQclear(res);
+        }
+        throw std::runtime_error("postgres: heartbeat failed: " + detail);
+    }
+    PQclear(res);
+}
+
+std::vector<Worker> Pq::list_workers() {
+    std::lock_guard lock(mutex_);
+    constexpr const char* sql = "SELECT id, name, status, last_seen FROM workers ORDER BY name";
+    PGresult* res = PQexec(conn_, sql);
+    if (res == nullptr || PQresultStatus(res) != PGRES_TUPLES_OK) {
+        const std::string detail =
+            res != nullptr ? PQerrorMessage(conn_) : "PQexec returned null";
+        if (res != nullptr) {
+            PQclear(res);
+        }
+        throw std::runtime_error("postgres: list_workers failed: " + detail);
+    }
+
+    std::vector<Worker> workers;
+    for (int i = 0; i < PQntuples(res); ++i) {
+        Worker w;
+        w.id = PQgetvalue(res, i, 0);
+        w.name = PQgetvalue(res, i, 1);
+        const std::string status = PQgetvalue(res, i, 2);
+        w.status = status == "busy" ? WorkerStatus::Busy : WorkerStatus::Voluntary;
+        w.last_seen = PQgetvalue(res, i, 3);
+        workers.push_back(w);
+    }
+    PQclear(res);
+    return workers;
 }
 
 std::optional<Job> Pq::fetch_job(const std::string& id) {

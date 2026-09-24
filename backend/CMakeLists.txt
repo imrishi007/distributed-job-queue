@@ -1,6 +1,6 @@
 find_package(PostgreSQL REQUIRED)
 
-add_library(djq-core src/job.cpp src/redis.cpp src/pq.cpp)
+add_library(djq-core src/job.cpp src/worker.cpp src/redis.cpp src/pq.cpp)
 target_include_directories(djq-core PUBLIC src third_party)
 target_compile_options(djq-core PRIVATE -Wall -Wextra)
 find_package(Threads REQUIRED)

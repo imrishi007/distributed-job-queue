@@ -1,6 +1,7 @@
 #pragma once
 
 #include "job.h"
+#include "worker.h"
 
 #include <libpq-fe.h>
 
@@ -23,6 +24,10 @@ public:
     std::vector<Job> stale_running(int older_than_seconds);
     bool reclaim_job(const std::string& id, int older_than_seconds);
     std::optional<Job> fetch_job(const std::string& id);
+
+    void register_worker(const std::string& id, const std::string& name);
+    void heartbeat(const std::string& id, WorkerStatus status);
+    std::vector<Worker> list_workers();
 
 private:
     PGconn* conn_;
