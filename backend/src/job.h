@@ -12,6 +12,7 @@ struct Job {
     std::string payload;
     JobStatus status = JobStatus::Queued;
     std::string output;
+    std::string created_at;
 };
 
 std::string generate_job_id();

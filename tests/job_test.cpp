@@ -19,7 +19,8 @@ int main() {
                                      {"type", "sleep"},
                                      {"payload", "{\"seconds\": 1}"},
                                      {"status", "queued"},
-                                     {"output", "slept 1s"}};
+                                     {"output", "slept 1s"},
+                                     {"created_at", ""}};
     assert(json == expected);
 
     std::cout << "job JSON round-trip OK\n";

@@ -40,6 +40,19 @@ int main() {
             res.set_content(R"({"error":"queue unavailable"})", "application/json");
         }
     });
+    svr.Get("/jobs", [&pq](const httplib::Request&, httplib::Response& res) {
+        try {
+            const auto jobs = pq.list_jobs(50);
+            nlohmann::json arr = nlohmann::json::array();
+            for (const Job& j : jobs) {
+                arr.push_back(j);
+            }
+            res.set_content(arr.dump(), "application/json");
+        } catch (const std::exception&) {
+            res.status = 500;
+            res.set_content(R"({"error":"store unavailable"})", "application/json");
+        }
+    });
     svr.Get(R"(/jobs/([0-9a-f]+))", [&pq](const httplib::Request& req, httplib::Response& res) {
         try {
             const auto job = pq.fetch_job(req.matches[1].str());

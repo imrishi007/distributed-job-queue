@@ -46,7 +46,8 @@ void to_json(nlohmann::json& j, const Job& job) {
                        {"type", job.type},
                        {"payload", job.payload},
                        {"status", job_status_name(job.status)},
-                       {"output", job.output}};
+                       {"output", job.output},
+                       {"created_at", job.created_at}};
 }
 
 void from_json(const nlohmann::json& j, Job& job) {
@@ -55,4 +56,6 @@ void from_json(const nlohmann::json& j, Job& job) {
     job.payload = j.at("payload").get<std::string>();
     job.status = status_from_name(j.at("status").get<std::string>());
     job.output = j.at("output").get<std::string>();
+    // Server-added metadata, not part of the wire contract for submissions.
+    job.created_at = j.value("created_at", std::string());
 }

@@ -14,12 +14,14 @@ The finished system accepts computational jobs over a REST API, runs them on ind
 - Replies `404 Not Found` to unknown routes.
 - Accepts jobs via `POST /jobs` — validates the JSON body, assigns an id, persists the job to PostgreSQL, pushes it onto a Redis list, and returns `201` with the stored job. Request: `{"type":"...","payload":"..."}`.
 - Serves `GET /jobs/<id>` — looks up a job by its 16-hex-char id in PostgreSQL and returns it (`404` if unknown).
+- Serves `GET /jobs` — lists the most recent 50 jobs (newest first) from PostgreSQL, e.g. for the dashboard.
 - Runs `djq-worker` processes that consume jobs off the queue, execute them (built-in types: `sleep`, `echo`), and record each result in PostgreSQL and Redis (`job:<id>`) with a `succeeded`/`failed` status and an output string. Run as many as you like — Redis hands each queued job to exactly one consumer, so workers scale horizontally with no coordination (pass a name argument, e.g. `djq-worker A`, to tell them apart in logs).
 - Recovers from worker crashes: a worker leases a job (marks it `running` with a timestamp) before executing; a periodic sweep inside each worker re-queues any job whose lease has gone stale, so work **survives a killed worker** (at-least-once delivery — a job may run more than once, never less).
 - Runs a worker registry: each `djq-worker` gets a stable id and heartbeats (`voluntary`/`busy`) into PostgreSQL, and `GET /workers` returns the live fleet — an absent heartbeat (`last_seen` going stale) is how a dead worker is distinguished from a busy one.
 - Persists every job and result in a `jobs` table (id, type, payload, status, output, created_at). PostgreSQL is the durable system of record; Redis carries the live queue. Data survives restarts and `flushdb`.
 - Represents jobs as a typed C++ model (`Job` + status enum) and serializes them to/from JSON.
 - Includes a small self-check executable (`build/tests/djq-tests`) exercising the JSON round-trip.
+- Includes a live React dashboard (`dashboard/`) — worker fleet with online/offline liveness, recent jobs, and a job-submission form. It is a Vite dev server that proxies `/api` to the backend on `127.0.0.1:8080`.
 
 ## Build and run
 
@@ -28,6 +30,16 @@ cmake -S . -B build
 cmake --build build
 ./build/backend/djq-backend
 ```
+
+Run the dashboard (a Node.js LTS runtime — e.g. the official Linux tarball — is required):
+
+```bash
+cd dashboard
+npm install
+npm run dev
+```
+
+Then open `http://localhost:5173`.
 
 ## Tech stack
 

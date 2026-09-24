@@ -24,6 +24,7 @@ public:
     std::vector<Job> stale_running(int older_than_seconds);
     bool reclaim_job(const std::string& id, int older_than_seconds);
     std::optional<Job> fetch_job(const std::string& id);
+    std::vector<Job> list_jobs(int limit);
 
     void register_worker(const std::string& id, const std::string& name);
     void heartbeat(const std::string& id, WorkerStatus status);

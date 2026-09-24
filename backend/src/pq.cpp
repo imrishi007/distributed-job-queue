@@ -237,7 +237,8 @@ std::vector<Worker> Pq::list_workers() {
 
 std::optional<Job> Pq::fetch_job(const std::string& id) {
     std::lock_guard lock(mutex_);
-    constexpr const char* sql = "SELECT type, payload, status, output FROM jobs WHERE id = $1";
+    constexpr const char* sql =
+        "SELECT type, payload, status, output, created_at FROM jobs WHERE id = $1";
     const char* param = id.c_str();
 
     PGresult* res = PQexecParams(conn_, sql, 1, nullptr, &param, nullptr, nullptr, 0);
@@ -258,7 +259,38 @@ std::optional<Job> Pq::fetch_job(const std::string& id) {
                               {"type", PQgetvalue(res, 0, 0)},
                               {"payload", PQgetvalue(res, 0, 1)},
                               {"status", PQgetvalue(res, 0, 2)},
-                              {"output", PQgetvalue(res, 0, 3)}};
+                              {"output", PQgetvalue(res, 0, 3)},
+                              {"created_at", PQgetvalue(res, 0, 4)}};
     PQclear(res);
     return j.get<Job>();
+}
+
+std::vector<Job> Pq::list_jobs(int limit) {
+    std::lock_guard lock(mutex_);
+    const std::string lim = std::to_string(limit);
+    const char* param = lim.c_str();
+    constexpr const char* sql =
+        "SELECT id, type, payload, status, output, created_at FROM jobs "
+        "ORDER BY created_at DESC LIMIT $1";
+    PGresult* res = PQexecParams(conn_, sql, 1, nullptr, &param, nullptr, nullptr, 0);
+    if (res == nullptr || PQresultStatus(res) != PGRES_TUPLES_OK) {
+        const std::string detail = res != nullptr ? PQerrorMessage(conn_) : "PQexecParams returned null";
+        if (res != nullptr) {
+            PQclear(res);
+        }
+        throw std::runtime_error("postgres: list_jobs failed: " + detail);
+    }
+
+    std::vector<Job> jobs;
+    for (int i = 0; i < PQntuples(res); ++i) {
+        const nlohmann::json j = {{"id", PQgetvalue(res, i, 0)},
+                                  {"type", PQgetvalue(res, i, 1)},
+                                  {"payload", PQgetvalue(res, i, 2)},
+                                  {"status", PQgetvalue(res, i, 3)},
+                                  {"output", PQgetvalue(res, i, 4)},
+                                  {"created_at", PQgetvalue(res, i, 5)}};
+        jobs.push_back(j.get<Job>());
+    }
+    PQclear(res);
+    return jobs;
 }
