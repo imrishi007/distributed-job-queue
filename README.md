@@ -15,6 +15,7 @@ The finished system accepts computational jobs over a REST API, runs them on ind
 - Accepts jobs via `POST /jobs` — validates the JSON body, assigns an id, persists the job to PostgreSQL, pushes it onto a Redis list, and returns `201` with the stored job. Request: `{"type":"...","payload":"..."}`.
 - Serves `GET /jobs/<id>` — looks up a job by its 16-hex-char id in PostgreSQL and returns it (`404` if unknown).
 - Runs `djq-worker` processes that consume jobs off the queue, execute them (built-in types: `sleep`, `echo`), and record each result in PostgreSQL and Redis (`job:<id>`) with a `succeeded`/`failed` status and an output string. Run as many as you like — Redis hands each queued job to exactly one consumer, so workers scale horizontally with no coordination (pass a name argument, e.g. `djq-worker A`, to tell them apart in logs).
+- Recovers from worker crashes: a worker leases a job (marks it `running` with a timestamp) before executing; a periodic sweep inside each worker re-queues any job whose lease has gone stale, so work **survives a killed worker** (at-least-once delivery — a job may run more than once, never less).
 - Persists every job and result in a `jobs` table (id, type, payload, status, output, created_at). PostgreSQL is the durable system of record; Redis carries the live queue. Data survives restarts and `flushdb`.
 - Represents jobs as a typed C++ model (`Job` + status enum) and serializes them to/from JSON.
 - Includes a small self-check executable (`build/tests/djq-tests`) exercising the JSON round-trip.

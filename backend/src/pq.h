@@ -7,6 +7,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <vector>
 
 class Pq {
 public:
@@ -18,6 +19,9 @@ public:
 
     void ensure_schema();
     void upsert_job(const Job& job);
+    void lease_job(const std::string& id);
+    std::vector<Job> stale_running(int older_than_seconds);
+    bool reclaim_job(const std::string& id, int older_than_seconds);
     std::optional<Job> fetch_job(const std::string& id);
 
 private:
